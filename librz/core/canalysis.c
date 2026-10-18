@@ -5447,11 +5447,15 @@ static bool analysis_op_context_init(AnalysisOpContext *ctx, RzCore *core, ut64 
 }
 
 static bool analysis_op_context_can_continue(AnalysisOpContext *ctx) {
+	if (ctx->itv.size > 0 && !rz_itv_contain(ctx->itv, ctx->current)) {
+		return false;
+	}
+
 	if (ctx->max_ops > 0) {
 		return ctx->ops_count < ctx->max_ops;
 	}
 
-	return rz_itv_contain(ctx->itv, ctx->current);
+	return true;
 }
 
 static RzAnalysisOp *analysis_op_context_iter_next(RzIterator *it) {
@@ -5520,11 +5524,15 @@ typedef struct core_decoded_bytes_s {
 } CoreDecodedBytes;
 
 static bool core_decoded_bytes_can_continue(CoreDecodedBytes *ctx) {
+	if (!rz_itv_contain(ctx->itv, ctx->current)) {
+		return false;
+	}
+
 	if (ctx->max_ops > 0) {
 		return ctx->ops_count < ctx->max_ops;
 	}
 
-	return rz_itv_contain(ctx->itv, ctx->current);
+	return true;
 }
 
 static void core_decoded_bytes_set_mnemonic(RzCoreDecodedBytes *cdb, bool is_x86) {

@@ -288,3 +288,16 @@ EXPECT=<<EOF
 [64,80,17,34,51,68]
 EOF
 RUN
+
+NAME=pdj does not read past the given buffer when requesting more instructions (non-deterministic output)
+FILE=bins/pe/ioli/w32/crackme0x00.exe
+CMDS=<<EOF
+e asm.bytes=false
+e asm.lines=false
+b 16
+pdj 100 @ 0x401000~{.[]\|{offset,opcode}}
+EOF
+EXPECT=<<EOF
+[{"offset":4198400,"opcode":"push ebp"},{"offset":4198401,"opcode":"mov ebp, esp"},{"offset":4198403,"opcode":"sub esp, 0x18"},{"offset":4198406,"opcode":"mov dword [ebp-0x08], ebx"},{"offset":4198409,"opcode":"mov eax, dword [ebp+0x08]"},{"offset":4198412,"opcode":"xor ebx, ebx"},{"offset":4198414,"opcode":"invalid"},{"offset":4198415,"opcode":"invalid"}]
+EOF
+RUN

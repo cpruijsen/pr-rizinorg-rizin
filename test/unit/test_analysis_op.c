@@ -130,6 +130,41 @@ bool test_rz_core_analysis_bytes() {
 	mu_end;
 }
 
+bool test_rz_core_analysis_bytes_respect_buffer_len() {
+	RzCore *core = rz_core_new();
+	rz_core_arch_configure(core, "x86", 64, NULL, NULL, NULL);
+
+	// 7 bytes = 3 ops: push rbp; mov rbp, rsp; mov dword [rbp-0x04], edi
+	ut8 buf[128];
+	int len = rz_hex_str2bin("554889e5897dfc", buf);
+
+	// max_ops larger than the number of ops fitting in the buffer must not
+	// make the iterator decode past the end of the provided buffer.
+	RzIterator iter = (RzIterator){ 0 };
+	mu_assert_true(rz_core_analysis_bytes(core, core->offset, buf, len, 100, &iter), "rz_core_analysis_bytes failed");
+	int count = 0;
+	RzCoreDecodedBytes *ab;
+	while ((ab = rz_iterator_next(&iter))) {
+		count++;
+		mu_assert_true(ab->an_op.addr >= core->offset && ab->an_op.addr < (ut64)core->offset + len, "op addr must be inside the provided buffer");
+	}
+	mu_assert_eq(count, 3, "the iterator must stop at the end of the buffer even when max_ops is not reached");
+	rz_iterator_fini(&iter);
+
+	// max_ops smaller than the ops fitting in the buffer still wins
+	RzIterator iter2 = (RzIterator){ 0 };
+	mu_assert_true(rz_core_analysis_bytes(core, core->offset, buf, len, 2, &iter2), "rz_core_analysis_bytes failed");
+	count = 0;
+	while ((ab = rz_iterator_next(&iter2))) {
+		count++;
+	}
+	mu_assert_eq(count, 2, "max_ops must still be honored");
+	rz_iterator_fini(&iter2);
+
+	rz_core_free(core);
+	mu_end;
+}
+
 bool test_rz_core_print_disasm() {
 	RzCore *core = rz_core_new();
 	rz_io_open_at(core->io, "malloc://0x100", RZ_PERM_RX, 0644, 0, NULL); // needed to get arrow info (is_valid_offset checks)
@@ -281,6 +316,7 @@ bool test_rz_core_il_print_rzil() {
 int all_tests() {
 	mu_run_test(test_rz_analysis_op_val);
 	mu_run_test(test_rz_core_analysis_bytes);
+	mu_run_test(test_rz_core_analysis_bytes_respect_buffer_len);
 	mu_run_test(test_rz_core_print_disasm);
 	mu_run_test(test_rz_core_print_disasm_resolve_aav_symbols);
 	mu_run_test(test_rz_core_il_print_rzil);
