@@ -64,7 +64,9 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 	op->size = ilen;
 	op->type = RZ_ANALYSIS_OP_TYPE_UNK;
 
-	if (len < 1) {
+	if (ilen < 1 || ilen > len) {
+		op->type = RZ_ANALYSIS_OP_TYPE_ILL;
+		op->size = 0;
 		return 0;
 	}
 
@@ -115,22 +117,22 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 	case 0x22: // ld (**), hl
 		op->type = RZ_ANALYSIS_OP_TYPE_STORE;
 		op->refptr = 2;
-		op->ptr = (len > 2) ? data[1] | data[2] << 8 : 0;
+		op->ptr = data[1] | data[2] << 8;
 		break;
 	case 0x32: // ld (**), a
 		op->type = RZ_ANALYSIS_OP_TYPE_STORE;
 		op->refptr = 1;
-		op->ptr = (len > 2) ? data[1] | data[2] << 8 : 0;
+		op->ptr = data[1] | data[2] << 8;
 		break;
 	case 0x2a: // ld hl, (**)
 		op->type = RZ_ANALYSIS_OP_TYPE_LOAD;
 		op->refptr = 2;
-		op->ptr = (len > 2) ? data[1] | data[2] << 8 : 0;
+		op->ptr = data[1] | data[2] << 8;
 		break;
 	case 0x3a: // ld a, (**)
 		op->type = RZ_ANALYSIS_OP_TYPE_LOAD;
 		op->refptr = 1;
-		op->ptr = (len > 2) ? data[1] | data[2] << 8 : 0;
+		op->ptr = data[1] | data[2] << 8;
 		break;
 	case 0xc0:
 	case 0xc8:
@@ -149,14 +151,19 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 		op->stackptr = -2;
 		break;
 	case 0xed:
-		switch ((len > 1) ? data[1] : 0) {
+		if (len < 4 && (data[1] == 0x63 || data[1] == 0x6b)) {
+			op->type = RZ_ANALYSIS_OP_TYPE_ILL;
+			op->size = 0;
+			return 0;
+		}
+		switch (data[1]) {
 		case 0x43:
 		case 0x53:
 		case 0x63:
 		case 0x73:
 			op->type = RZ_ANALYSIS_OP_TYPE_STORE;
 			op->refptr = 2;
-			op->ptr = (len > 3) ? data[2] | data[3] << 8 : 0;
+			op->ptr = data[2] | data[3] << 8;
 			break;
 		case 0x4b:
 		case 0x5b:
@@ -164,7 +171,7 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 		case 0x7b:
 			op->type = RZ_ANALYSIS_OP_TYPE_LOAD;
 			op->refptr = 2;
-			op->ptr = (len > 3) ? data[2] | data[3] << 8 : 0;
+			op->ptr = data[2] | data[3] << 8;
 			break;
 		case 0x45: // retn
 		case 0x4d: // reti
@@ -175,16 +182,16 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 		break;
 	case 0xdd: // IX ops prefix
 	case 0xfd: // IY ops prefix
-		switch ((len > 1) ? data[1] : 0) {
+		switch (data[1]) {
 		case 0x22: // ld (**), ix; ld (**), iy
 			op->type = RZ_ANALYSIS_OP_TYPE_STORE;
 			op->refptr = 2;
-			op->ptr = (len > 3) ? data[2] | data[3] << 8 : 0;
+			op->ptr = data[2] | data[3] << 8;
 			break;
 		case 0x2a: // ld ix, (**); ld ix, (**)
 			op->type = RZ_ANALYSIS_OP_TYPE_LOAD;
 			op->refptr = 2;
-			op->ptr = (len > 3) ? data[2] | data[3] << 8 : 0;
+			op->ptr = data[2] | data[3] << 8;
 			break;
 		}
 		break;
@@ -230,12 +237,12 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 
 	case 0x10: // djnz
 		op->type = RZ_ANALYSIS_OP_TYPE_CJMP;
-		op->jump = addr + ((len > 1) ? (st8)data[1] : 0) + ilen;
+		op->jump = addr + (st8)data[1] + ilen;
 		op->fail = addr + ilen;
 		break;
 	case 0x18: // jr xx
 		op->type = RZ_ANALYSIS_OP_TYPE_JMP;
-		op->jump = addr + ((len > 1) ? (st8)data[1] : 0) + ilen;
+		op->jump = addr + (st8)data[1] + ilen;
 		break;
 	// jr cond, xx
 	case 0x20:
@@ -321,10 +328,10 @@ static int z80_analysis_op(RzAnalysis *analysis, RzAnalysisOp *op, ut64 addr, co
 		op->type = RZ_ANALYSIS_OP_TYPE_CALL;
 		op->stackop = RZ_ANALYSIS_STACK_INC;
 		op->stackptr = 2;
-		op->jump = (len > 2) ? data[1] | data[2] << 8 : 0;
+		op->jump = data[1] | data[2] << 8;
 		break;
 	case 0xcb: // the same as for gameboy
-		switch ((len > 1) ? data[1] / 8 : -1) {
+		switch (data[1] / 8) {
 		case 0:
 		case 2:
 		case 4:
